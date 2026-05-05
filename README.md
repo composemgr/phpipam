@@ -50,9 +50,9 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/data/phpipam` - Data storage
-- `./rootfs/config/phpipam` - Data storage
-- `./rootfs/data/db/mariadb/phpipam` - Data storage
+- `./volumes/data/phpipam` - Data storage
+- `./volumes/config/phpipam` - Data storage
+- `./volumes/data/db/mariadb/phpipam` - Data storage
 
 ## 🔐 Security
 
