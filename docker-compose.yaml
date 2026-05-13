@@ -1,5 +1,6 @@
 # nginx proxy address - http://172.17.0.1:8102
 
+name: phpipam
 x-logging: &default-logging
   driver: json-file
   options:
@@ -9,25 +10,34 @@ x-logging: &default-logging
 services:
   phpipam:
     image: phpipam/phpipam-www:latest
+    pull_policy: always
     container_name: phpipam-app
-    restart: unless-stopped
+    restart: always
     logging: *default-logging
     networks:
       - phpipam
     ports:
-      - "8102:80"
+      - "172.17.0.1:8102:80"
     environment:
       TZ: ${TZ:-America/New_York}
-    volumes:
-      - ./volumes/data/phpipam:/data
-      - ./volumes/config/phpipam:/config
+      IPAM_DATABASE_HOST: phpipam-db
+      IPAM_DATABASE_NAME: ${DB_CREATE_DATABASE_NAME:-phpipam}
+      IPAM_DATABASE_USER: ${DB_USER_NAME:-phpipam}
+      IPAM_DATABASE_PASS: ${DB_USER_PASS:-changeme_db_password}
+      IPAM_DATABASE_WEBHOST: "%"
     depends_on:
       - phpipam-db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   phpipam-db:
-    image: mariadb:11
+    image: mariadb:latest
+    pull_policy: always
     container_name: phpipam-db
-    restart: unless-stopped
+    restart: always
     logging: *default-logging
     networks:
       - phpipam
@@ -36,7 +46,7 @@ services:
       MARIADB_DATABASE: ${DB_CREATE_DATABASE_NAME:-phpipam}
       MARIADB_USER: ${DB_USER_NAME:-phpipam}
       MARIADB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
-      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_root_password}
+      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
     volumes:
       - ./volumes/data/db/mariadb/phpipam:/var/lib/mysql
     healthcheck:
