@@ -16,6 +16,8 @@ services:
     logging: *default-logging
     networks:
       - phpipam
+      - proxy
+      - cloudflare
     ports:
       - "172.17.0.1:8102:80"
     environment:
@@ -25,6 +27,8 @@ services:
       IPAM_DATABASE_USER: ${DB_USER_NAME:-phpipam}
       IPAM_DATABASE_PASS: ${DB_USER_PASS:-changeme_db_password}
       IPAM_DATABASE_WEBHOST: "%"
+      CONTAINER_NAME: phpipam-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     depends_on:
       - phpipam-db
     healthcheck:
@@ -32,6 +36,22 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://phpipam-app:80'
+      - 'cloudflare.hostname=phpipam.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.phpipam-app.entrypoints=http'
+      - 'traefik.http.routers.phpipam-app-secure.tls=true'
+      - 'traefik.http.routers.phpipam-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.phpipam-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.phpipam-app.middlewares=phpipam-app-https-redirect'
+      - 'traefik.http.routers.phpipam-app-secure.entrypoints=https'
+      - 'traefik.http.routers.phpipam-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.phpipam-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.phpipam-app-secure.service=phpipam-app'
+      - 'traefik.http.services.phpipam-app.loadbalancer.server.port=80'
 
   phpipam-db:
     image: mariadb:latest
@@ -47,6 +67,7 @@ services:
       MARIADB_USER: ${DB_USER_NAME:-phpipam}
       MARIADB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
       MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
+      CONTAINER_NAME: phpipam-db
     volumes:
       - ./volumes/data/db/mariadb/phpipam:/var/lib/mysql
     healthcheck:
@@ -58,3 +79,7 @@ services:
 networks:
   phpipam:
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
