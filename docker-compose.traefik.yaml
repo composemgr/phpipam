@@ -1,0 +1,76 @@
+name: phpipam
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  phpipam:
+    image: phpipam/phpipam-www:latest
+    pull_policy: always
+    container_name: phpipam-app
+    restart: always
+    logging: *default-logging
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=traefik'
+      - 'traefik.http.routers.phpipam.entrypoints=http'
+      - 'traefik.http.routers.phpipam.rule=Host(`${BASE_HOST_NAME:-$HOSTNAME}`)'
+      - 'traefik.http.routers.phpipam.middlewares=phpipam-https-redirect'
+      - 'traefik.http.middlewares.phpipam-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.phpipam-secure.entrypoints=https'
+      - 'traefik.http.routers.phpipam-secure.tls=true'
+      - 'traefik.http.routers.phpipam-secure.rule=Host(`${BASE_HOST_NAME:-$HOSTNAME}`)'
+      - 'traefik.http.routers.phpipam-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.phpipam-secure.service=phpipam'
+      - 'traefik.http.services.phpipam.loadbalancer.server.port=80'
+    networks:
+      - phpipam
+      - traefik
+    environment:
+      TZ: ${TZ:-America/New_York}
+      IPAM_DATABASE_HOST: phpipam-db
+      IPAM_DATABASE_NAME: ${DB_CREATE_DATABASE_NAME:-phpipam}
+      IPAM_DATABASE_USER: ${DB_USER_NAME:-phpipam}
+      IPAM_DATABASE_PASS: ${DB_USER_PASS:-changeme_db_password}
+      IPAM_DATABASE_WEBHOST: "%"
+      CONTAINER_NAME: phpipam-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+    depends_on:
+      - phpipam-db
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  phpipam-db:
+    image: mariadb:latest
+    pull_policy: always
+    container_name: phpipam-db
+    restart: always
+    logging: *default-logging
+    networks:
+      - phpipam
+    environment:
+      TZ: ${TZ:-America/New_York}
+      MARIADB_DATABASE: ${DB_CREATE_DATABASE_NAME:-phpipam}
+      MARIADB_USER: ${DB_USER_NAME:-phpipam}
+      MARIADB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
+      CONTAINER_NAME: phpipam-db
+    volumes:
+      - ./volumes/data/db/mariadb/phpipam:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  phpipam:
+    name: phpipam
+    external: false
+  traefik:
+    external: true
